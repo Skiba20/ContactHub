@@ -1,3 +1,4 @@
+
 import express from 'express'
 import cors from 'cors'
 import Database from 'better-sqlite3'
@@ -13,19 +14,32 @@ const __dirname = path.dirname(__filename)
 const db = new Database(path.join(__dirname, 'contacts.db'))
 db.pragma('journal_mode = WAL')
 db.pragma('foreign_keys = ON')
+
 const PORT = process.env.PORT || 3001
-const JWT_SECRET =
-  process.env.JWT_SECRET || 'contacthub-local-development-secret-change-before-deploy'
+const JWT_SECRET = process.env.JWT_SECRET || 'contacthub-local-development-secret-change-before-deploy'
 
 const app = express()
 
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://contacthub20.netlify.app',
+  process.env.FRONTEND_URL,
+].filter(Boolean)
+
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'https://contacthub-skiba20.netlify.app',
-  ],
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true)
+    }
+
+    console.error('CORS blocked origin:', origin)
+    return callback(new Error('Origin not allowed by CORS'))
+  },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }))
+
 app.use(express.json())
 app.use(cookieParser())
 
@@ -72,6 +86,15 @@ function setAuthCookie(res, user) {
   })
 }
 
+function clearAuthCookie(res) {
+  res.clearCookie('contacthub_token', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    path: '/',
+  })
+}
+
 function publicUser(user) {
   return { id: user.id, name: user.name, email: user.email }
 }
@@ -85,9 +108,9 @@ function authenticate(req, res, next) {
 
   try {
     req.user = jwt.verify(token, JWT_SECRET)
-    next()
+    return next()
   } catch {
-    res.clearCookie('contacthub_token', { path: '/' })
+    clearAuthCookie(res)
     return res.status(401).json({ message: 'Сессия истекла. Войдите снова' })
   }
 }
@@ -96,7 +119,6 @@ app.get('/', (req, res) => {
   res.send('ContactHub API работает!')
 })
 
-// Регистрация
 app.post('/api/auth/register', (req, res) => {
   const name = typeof req.body.name === 'string' ? req.body.name.trim() : ''
   const email = typeof req.body.email === 'string'
@@ -151,7 +173,6 @@ app.post('/api/auth/register', (req, res) => {
 
     const user = transaction()
     setAuthCookie(res, user)
-
     return res.status(201).json({ user })
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
@@ -163,7 +184,6 @@ app.post('/api/auth/register', (req, res) => {
   }
 })
 
-// Вход
 app.post('/api/auth/login', (req, res) => {
   const email = typeof req.body.email === 'string'
     ? req.body.email.trim().toLowerCase()
@@ -184,33 +204,24 @@ app.post('/api/auth/login', (req, res) => {
   return res.json({ user: publicUser(user) })
 })
 
-// Проверка сессии
 app.get('/api/auth/me', authenticate, (req, res) => {
   const user = db.prepare(
     'SELECT id, name, email FROM users WHERE id = ?',
   ).get(req.user.id)
 
   if (!user) {
-    res.clearCookie('contacthub_token', { path: '/' })
+    clearAuthCookie(res)
     return res.status(401).json({ message: 'Пользователь не найден' })
   }
 
   return res.json({ user })
 })
 
-// Выход
 app.post('/api/auth/logout', (req, res) => {
-  res.clearCookie('contacthub_token', {
-    httpOnly: true,
-    secure: false,
-    sameSite: 'lax',
-    path: '/',
-  })
-
+  clearAuthCookie(res)
   return res.json({ message: 'Вы вышли из аккаунта' })
 })
 
-// Получить все контакты текущего пользователя
 app.get('/api/contacts', authenticate, (req, res) => {
   const contacts = db.prepare(`
     SELECT id, name, email, phone, company, tag
@@ -222,7 +233,6 @@ app.get('/api/contacts', authenticate, (req, res) => {
   return res.json(contacts)
 })
 
-// Получить один контакт по ID — новый маршрут
 app.get('/api/contacts/:id', authenticate, (req, res) => {
   const id = Number(req.params.id)
 
@@ -243,15 +253,8 @@ app.get('/api/contacts/:id', authenticate, (req, res) => {
   return res.json(contact)
 })
 
-// Создать контакт
 app.post('/api/contacts', authenticate, (req, res) => {
-  const {
-    name,
-    email,
-    phone = '',
-    company = '',
-    tag = 'Друзья',
-  } = req.body
+  const { name, email, phone = '', company = '', tag = 'Друзья' } = req.body
 
   if (
     typeof name !== 'string' || !name.trim() ||
@@ -276,12 +279,11 @@ app.post('/api/contacts', authenticate, (req, res) => {
     SELECT id, name, email, phone, company, tag
     FROM contacts
     WHERE id = ? AND user_id = ?
-  `).get(result.lastInsertRowid, req.user.id)
+  `).get(Number(result.lastInsertRowid), req.user.id)
 
   return res.status(201).json(contact)
 })
 
-// Редактировать контакт
 app.put('/api/contacts/:id', authenticate, (req, res) => {
   const id = Number(req.params.id)
 
@@ -330,7 +332,6 @@ app.put('/api/contacts/:id', authenticate, (req, res) => {
   return res.json(contact)
 })
 
-// Удалить контакт
 app.delete('/api/contacts/:id', authenticate, (req, res) => {
   const id = Number(req.params.id)
 
@@ -350,5 +351,5 @@ app.delete('/api/contacts/:id', authenticate, (req, res) => {
 })
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server is running on port ${PORT}`)
+  console.log(`ContactHub API запущен на порту ${PORT}`)
 })
