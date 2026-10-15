@@ -9,7 +9,7 @@ import {
   BriefcaseBusiness,
 } from 'lucide-react'
 
-const API_URL = import.meta.env.VITE_API_URL
+const API_URL = `${import.meta.env.VITE_API_URL}/api/contacts`
 
 export default function ContactDetails() {
   const { id } = useParams()
