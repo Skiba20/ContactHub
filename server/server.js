@@ -347,7 +347,6 @@ app.delete('/api/contacts/:id', authenticate, (req, res) => {
   return res.json({ message: 'Контакт удалён' })
 })
 
-app.listen(PORT, () => {
-  console.log(`ContactHub API запущен: http://localhost:${PORT}`)
-  console.log('База данных: server/contacts.db')
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server is running on port ${PORT}`)
 })

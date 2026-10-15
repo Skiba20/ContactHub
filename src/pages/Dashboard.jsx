@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
-const API_URL = 'http://localhost:3001/api/contacts'
+const API_URL = '/api/contacts'
 
 const emptyForm = {
   name: '',

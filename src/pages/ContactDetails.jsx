@@ -9,7 +9,7 @@ import {
   BriefcaseBusiness,
 } from 'lucide-react'
 
-const API_URL = 'http://localhost:3001/api/contacts'
+const API_URL = '/api/contacts'
 
 export default function ContactDetails() {
   const { id } = useParams()
