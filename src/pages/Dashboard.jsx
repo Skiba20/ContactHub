@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
-const API_URL = '/api/contacts'
+const API_URL = import.meta.env.VITE_API_URL
 
 const emptyForm = {
   name: '',
