@@ -13,15 +13,17 @@ const __dirname = path.dirname(__filename)
 const db = new Database(path.join(__dirname, 'contacts.db'))
 db.pragma('journal_mode = WAL')
 db.pragma('foreign_keys = ON')
-
-const PORT = 3001
+const PORT = process.env.PORT || 3001
 const JWT_SECRET =
   process.env.JWT_SECRET || 'contacthub-local-development-secret-change-before-deploy'
 
 const app = express()
 
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: [
+    'http://localhost:5173',
+    'https://contacthub-skiba20.netlify.app',
+  ],
   credentials: true,
 }))
 app.use(express.json())
@@ -63,8 +65,8 @@ function createToken(user) {
 function setAuthCookie(res, user) {
   res.cookie('contacthub_token', createToken(user), {
     httpOnly: true,
-    secure: false,
-    sameSite: 'lax',
+    secure: true,
+    sameSite: 'none',
     maxAge: 7 * 24 * 60 * 60 * 1000,
     path: '/',
   })
